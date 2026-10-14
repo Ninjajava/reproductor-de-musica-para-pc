@@ -1,0 +1,6 @@
+customtkinter>=5.2.2
+sounddevice>=0.5.1
+numpy>=2.0.0
+scipy>=1.13.0
+miniaudio>=1.61
+mutagen>=1.47.0
