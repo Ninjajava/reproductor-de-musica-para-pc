@@ -29,6 +29,8 @@ Para reconstruirlos en Windows, con las dependencias instaladas, ejecuta `.\buil
 
 ## Interfaces y datos locales
 
+Las asignaciones de los 12 pads se guardan localmente en `playlists/sampler.json`. Al mover el programa a otro PC, copia también los MP3 asignados o vuelve a seleccionarlos desde cada pad.
+
 La cabecera permite elegir entre la consola con waveform y la vista alternativa de dos platos LP animados. Ambas vistas controlan los mismos Deck A/B y la misma salida de audio.
 
 Las playlists y sus metadatos se guardan localmente en `playlists/playlists.json`, dentro de la carpeta del programa; no se utiliza almacenamiento en linea. El archivo conserva rutas locales a las canciones, por lo que mover la aplicacion a otro PC no mueve los audios.
@@ -39,6 +41,8 @@ Las playlists y sus metadatos se guardan localmente en `playlists/playlists.json
 - Seleccionar una pista de la playlist y usar **Cargar A/B**. Los controles de transporte y EQ son independientes.
 - Pitch: 0% es velocidad normal; rango ±12%. Crossfader: izquierda prioriza A, derecha prioriza B.
 - Play mezcla ambos decks en tiempo real. Stop vuelve al inicio.
+- En el panel **SAMPLE PADS**, pulsa un pad vacío para elegir su MP3. Cuando tenga audio, el botón o tecla **F1–F12** inicia la reproducción; volver a pulsarlo detiene y reinicia ese pad. La banda muestra el avance y vuelve a cero al detener o terminar. El botón circular **＋** carga o reemplaza el audio; **×** lo vacía. Cada pad tiene volumen independiente de 0 a 200%.
+- En la vista **Vinilos LP**, los faders de canal A/B llegan hasta 150%; el control MASTER llega hasta 125%.
 
 Se admiten WAV y MP3. La salida se mezcla en estéreo a 44.1 kHz. La pista se decodifica en memoria antes de pasar al callback de audio. Para colecciones grandes, carga únicamente las pistas que vas a pinchar: cada pista decodificada ocupa memoria RAM.
 
@@ -54,6 +58,7 @@ reproductor/
     ├── audio_engine.py     # Modelo/motor de audio en tiempo real
     ├── controller.py       # Coordinación MVC y operaciones asíncronas
     ├── library.py          # Modelo de biblioteca y playlists persistentes
+    ├── sampler.py          # Modelo de asignaciones de pads persistentes
     └── view.py             # Vista CustomTkinter
 ```
 

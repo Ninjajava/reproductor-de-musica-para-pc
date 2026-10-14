@@ -30,7 +30,9 @@ if (-not $iscc) {
     if (Test-Path $localIscc) { $iscc = Get-Item $localIscc }
 }
 if ($iscc) {
-    & $iscc.Source "installer.iss"
+    $compiler = $iscc.Source
+    if (-not $compiler) { $compiler = $iscc.FullName }
+    & $compiler "installer.iss"
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup no pudo generar el instalador." }
     Write-Host "Instalador creado en output\JULIOPRODDJ-Setup.exe"
 } else {

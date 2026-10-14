@@ -112,7 +112,7 @@ class VinylDeckPanel(ctk.CTkFrame):
         self.title = ctk.CTkLabel(self, text=f"PLATO {nombre}  •  SIN PISTA", text_color=color,
                                   font=ctk.CTkFont(size=18, weight="bold"))
         self.title.pack(anchor="w", padx=18, pady=(15, 3))
-        self.canvas = tk.Canvas(self, height=310, bg="#100d0b", highlightthickness=1,
+        self.canvas = tk.Canvas(self, height=260, bg="#100d0b", highlightthickness=1,
                                 highlightbackground="#5a4430")
         self.canvas.pack(fill="both", expand=True, padx=10, pady=(5, 7))
         self.clock = ctk.CTkLabel(self, text="00:00 / 00:00", text_color=TEXT,
@@ -212,6 +212,91 @@ class VinylDeckPanel(ctk.CTkFrame):
                            fill=self.color, outline="#fff2d8")
 
 
+class SamplePadPanel(ctk.CTkFrame):
+    """Doce pads MP3 que comparten las dos interfaces del reproductor."""
+
+    def __init__(self, master, on_trigger, on_load, on_clear, on_gain):
+        super().__init__(master, fg_color=PANEL, corner_radius=12)
+        self.names: list[str | None] = [None] * 12
+        self.progress_bars = []
+        self.add_buttons = []
+        self.gain_sliders = []
+        self.gain_labels = []
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=14, pady=(6, 1))
+        ctk.CTkLabel(header, text="SAMPLE PADS", text_color=CYAN,
+                     font=ctk.CTkFont(size=12, weight="bold")).pack(side="left")
+        ctk.CTkLabel(header, text="BOTÓN + CIRCULAR: CARGAR/CAMBIAR  ·  CLICK O F1–F12: REPRODUCIR",
+                     text_color="#8397aa", font=ctk.CTkFont(size=10)).pack(side="right")
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=8, pady=(0, 6))
+        self.triggers = []
+        for index in range(12):
+            row.grid_columnconfigure(index, weight=1, uniform="sample_pad")
+            cell = ctk.CTkFrame(row, fg_color="#0b1320", corner_radius=8)
+            cell.grid(row=0, column=index, sticky="nsew", padx=3)
+            key_header = ctk.CTkFrame(cell, fg_color="transparent")
+            key_header.pack(fill="x", padx=4, pady=(1, 0))
+            ctk.CTkLabel(key_header, text=f"F{index + 1:02d}", text_color="#91a9ba",
+                         font=ctk.CTkFont(family="Consolas", size=9, weight="bold")).pack(side="left")
+            gain_label = ctk.CTkLabel(key_header, text="100%", text_color="#8aa4b6",
+                                      font=ctk.CTkFont(size=8, weight="bold"))
+            gain_label.pack(side="right", padx=(2, 3))
+            ctk.CTkButton(key_header, text="×", width=18, height=17, fg_color="transparent",
+                          hover_color="#382432", font=ctk.CTkFont(size=11),
+                          command=lambda i=index: on_clear(i)).pack(side="right")
+            gain = ctk.CTkSlider(key_header, from_=0, to=2, number_of_steps=100, width=54, height=10,
+                                 progress_color=CYAN, button_color=CYAN,
+                                 command=lambda value, i=index, label=gain_label:
+                                 self._gain_changed(i, value, label, on_gain))
+            gain.set(1.0)
+            gain.pack(side="right", fill="x", expand=True, padx=(5, 1))
+            surface = ctk.CTkFrame(cell, fg_color="transparent", height=36)
+            surface.pack(fill="x", padx=3, pady=2)
+            surface.pack_propagate(False)
+            trigger = ctk.CTkButton(surface, text="VACÍO", height=34, fg_color="#183146",
+                                    hover_color="#1a5366", corner_radius=10,
+                                    font=ctk.CTkFont(size=10, weight="bold"), anchor="w",
+                                    command=lambda i=index: on_trigger(i))
+            trigger.pack(fill="both", expand=True)
+            add_button = ctk.CTkButton(surface, text="+", width=27, height=27,
+                                       corner_radius=50, border_width=1, border_color="#c9fbff",
+                                       fg_color="#00a9ba", hover_color="#00d4e8",
+                                       text_color="#07131d", font=ctk.CTkFont(size=18, weight="bold"),
+                                       command=lambda i=index: on_load(i))
+            add_button.place(relx=1.0, rely=0.5, x=-4, anchor="e")
+            self.add_buttons.append(add_button)
+            progress = ctk.CTkProgressBar(cell, height=4, progress_color=CYAN,
+                                          fg_color="#263849", corner_radius=2)
+            progress.set(0)
+            progress.pack(fill="x", padx=5, pady=(0, 2))
+            self.triggers.append(trigger)
+            self.progress_bars.append(progress)
+            self.gain_sliders.append(gain)
+            self.gain_labels.append(gain_label)
+
+    @staticmethod
+    def _gain_changed(index, value, label, on_gain):
+        label.configure(text=f"{float(value) * 100:.0f}%")
+        on_gain(index, value)
+
+    def set_pad(self, index: int, title: str) -> None:
+        self.triggers[index].configure(text=title[:12], fg_color="#13443e")
+
+    def set_gain(self, index: int, value: float) -> None:
+        gain = max(0.0, min(2.0, float(value)))
+        self.gain_sliders[index].set(gain)
+        self.gain_labels[index].configure(text=f"{gain * 100:.0f}%")
+
+    def clear_pad(self, index: int) -> None:
+        self.triggers[index].configure(text="VACÍO", fg_color="#183146")
+        self.set_progress(index, 0.0)
+        self.set_gain(index, 1.0)
+
+    def set_progress(self, index: int, value: float) -> None:
+        self.progress_bars[index].set(max(0.0, min(1.0, value)))
+
+
 class DJView(ctk.CTk):
     """Ventana principal y capa de presentación MVC."""
 
@@ -220,7 +305,7 @@ class DJView(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         self.title("JULIOPRODDJ  •  DJ MIXER")
-        self.geometry("1500x940")
+        self.geometry("1500x980")
         self.minsize(1160, 760)
         self.configure(fg_color=BG)
         self.controller = None
@@ -229,6 +314,8 @@ class DJView(ctk.CTk):
         self.selected_path: str | None = None
         self.mode_var = tk.StringVar(value="Consola")
         self._build()
+        for index in range(12):
+            self.bind_all(f"<F{index + 1}>", lambda _event, i=index: self._trigger_sample(i))
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(100, self._tick)
         self.after(40, self._animate_vinyls)
@@ -237,6 +324,11 @@ class DJView(ctk.CTk):
         self.controller = controller
         self.refresh_playlists(list(controller.library.playlists), next(iter(controller.library.playlists)))
         self.path_label.configure(text=f"BIBLIOTECA  •  {controller.library.directory}")
+        for index, item in enumerate(controller.sampler.pads):
+            self.sample_panel.set_gain(index, controller.sampler.gains[index])
+            if item:
+                title = item["title"] if Path(item["path"]).is_file() else f"{item['title']} (FALTA)"
+                self.sample_panel.set_pad(index, title)
 
     def _build(self):
         header = ctk.CTkFrame(self, fg_color="transparent")
@@ -322,6 +414,11 @@ class DJView(ctk.CTk):
         self._build_vinyl_mixer()
         self.vinyl_mixer.grid_remove()
 
+        self.sample_panel = SamplePadPanel(self, self._pad_clicked,
+                                           self._load_sample_dialog, self._clear_sample,
+                                           self._set_sample_gain)
+        self.sample_panel.pack(fill="x", padx=25, pady=(0, 8))
+
         bottom = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=12)
         bottom.pack(fill="x", padx=25, pady=(0,8))
         ctk.CTkLabel(bottom, text="A", text_color=CYAN, width=30).pack(side="left", padx=(20,2))
@@ -332,9 +429,11 @@ class DJView(ctk.CTk):
         ctk.CTkLabel(bottom, text="CROSSFADER", text_color=TEXT,
                      font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=8)
         ctk.CTkLabel(bottom, text="B", text_color=PINK, width=30).pack(side="left", padx=(2,15))
-        self.master_slider = ctk.CTkSlider(bottom, from_=0, to=1, width=150, command=self._master)
-        self.master_slider.set(.85)
+        self.master_slider = ctk.CTkSlider(bottom, from_=0, to=1.25, width=150, command=self._master)
+        self.master_slider.set(1.0)
         self.master_slider.pack(side="right", padx=(0,20), pady=10)
+        self.master_value = ctk.CTkLabel(bottom, text="100%", text_color="#96a9b8", width=38)
+        self.master_value.pack(side="right", padx=(3,0))
         ctk.CTkLabel(bottom, text="MASTER", text_color="#96a9b8").pack(side="right", padx=3)
         self.status_label = ctk.CTkLabel(self, text="Listo", text_color="#87a2b6", anchor="w")
         self.status_label.pack(fill="x", padx=27, pady=(0,10))
@@ -395,6 +494,35 @@ class DJView(ctk.CTk):
     def _load_selected(self, deck):
         self.controller.load_deck(deck, self.selected_path)
 
+    def _load_sample_dialog(self, index):
+        path = filedialog.askopenfilename(title=f"Asignar MP3 al pad F{index + 1}",
+                                          filetypes=[("Audio MP3", ("*.mp3", "*.MP3"))])
+        if path:
+            self.controller.load_sample(index, path)
+
+    def _pad_clicked(self, index):
+        if not self.controller:
+            return
+        if self.controller.audio.samples[index] is None:
+            self._load_sample_dialog(index)
+        else:
+            self.controller.trigger_sample(index)
+
+    def _trigger_sample(self, index):
+        if self.controller:
+            self.controller.trigger_sample(index)
+        return "break"
+
+    def _clear_sample(self, index):
+        if self.controller:
+            self.controller.clear_sample(index)
+
+    def sample_assigned(self, index, title):
+        self.sample_panel.set_pad(index, title)
+
+    def sample_cleared(self, index):
+        self.sample_panel.clear_pad(index)
+
     def _change_mode(self, mode):
         if mode == "Vinilos LP":
             self.decks_frame_show(False)
@@ -405,6 +533,7 @@ class DJView(ctk.CTk):
                 for slider, gain in zip(panel.eq_sliders, model.gains):
                     slider.set(gain)
                 self.level_sliders[name].set(model.level)
+                self._set_level(name, model.level)
         else:
             self.vinyl_mixer.grid_remove()
             self.decks_frame_show(True)
@@ -429,12 +558,16 @@ class DJView(ctk.CTk):
         levels = ctk.CTkFrame(center, fg_color="transparent")
         levels.pack(fill="both", expand=True, padx=8, pady=4)
         self.level_sliders = {}
+        self.level_labels = {}
         for name, color in (("A", CYAN), ("B", PINK)):
             channel = ctk.CTkFrame(levels, fg_color="#100f0e", corner_radius=9)
             channel.pack(side="left", expand=True, fill="both", padx=3)
             ctk.CTkLabel(channel, text=name, text_color=color,
                          font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(8, 0))
-            slider = ctk.CTkSlider(channel, from_=0, to=1.2, orientation="vertical", height=155,
+            level_label = ctk.CTkLabel(channel, text="100%", text_color=color,
+                                       font=ctk.CTkFont(size=10, weight="bold"))
+            level_label.pack(pady=(0, 1))
+            slider = ctk.CTkSlider(channel, from_=0, to=1.5, orientation="vertical", height=155,
                                    progress_color=color, button_color=color,
                                    command=lambda value, deck=name: self._set_level(deck, value))
             slider.set(1.0)
@@ -442,6 +575,7 @@ class DJView(ctk.CTk):
             ctk.CTkLabel(channel, text="LEVEL", text_color="#9c927f",
                          font=ctk.CTkFont(size=9)).pack(pady=(0, 8))
             self.level_sliders[name] = slider
+            self.level_labels[name] = level_label
         ctk.CTkLabel(center, text="A  ◇  B", text_color="#d8c49f",
                      font=ctk.CTkFont(size=12, weight="bold")).pack(pady=(3, 14))
 
@@ -471,14 +605,22 @@ class DJView(ctk.CTk):
             self.controller.audio.decks[nombre].gains[index] = float(value)
 
     def _set_level(self, nombre, value):
+        value = float(value)
+        if hasattr(self, "level_labels") and nombre in self.level_labels:
+            self.level_labels[nombre].configure(text=f"{value * 100:.0f}%")
         if self.controller:
-            self.controller.audio.decks[nombre].level = float(value)
+            self.controller.audio.decks[nombre].level = value
+
+    def _set_sample_gain(self, index, value):
+        if self.controller:
+            self.controller.set_sample_gain(index, value)
 
     def _crossfade(self, value):
         if self.controller:
             self.controller.audio.crossfader = float(value)
 
     def _master(self, value):
+        self.master_value.configure(text=f"{float(value) * 100:.0f}%")
         if self.controller:
             self.controller.audio.master = float(value)
 
@@ -514,6 +656,8 @@ class DJView(ctk.CTk):
             for name, deck in self.controller.audio.decks.items():
                 self.decks[name].update_clock(deck.elapsed, deck.duration)
                 self.vinyl_decks[name].update_state(deck.elapsed, deck.duration, deck.playing)
+            for index, progress in enumerate(self.controller.audio.sample_progress):
+                self.sample_panel.set_progress(index, progress)
         self.after(100, self._tick)
 
     def _animate_vinyls(self):

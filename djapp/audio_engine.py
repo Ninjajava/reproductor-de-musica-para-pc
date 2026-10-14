@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import sounddevice as sd
 import miniaudio
+import queue
 from scipy.signal import butter, sosfilt
 
 RATE = 44100
@@ -71,17 +72,38 @@ class AudioEngine:
     def __init__(self):
         self.decks = {"A": Deck("A"), "B": Deck("B")}
         self.crossfader = 0.5
-        self.master = 0.85
+        self.master = 1.0
         self._stream: sd.OutputStream | None = None
+        self.samples: list[np.ndarray | None] = [None] * 12
+        self._sample_triggers: queue.SimpleQueue[tuple[str, int]] = queue.SimpleQueue()
+        self._active_samples: dict[int, list] = {}
+        self.sample_progress = [0.0] * 12
+        self.sample_gains = [1.0] * 12
 
     @staticmethod
     def decode(ruta: str) -> np.ndarray:
-        """Decodifica WAV/MP3 fuera del callback de audio."""
-        decoded = miniaudio.decode_file(ruta, miniaudio.SampleFormat.FLOAT32, 2, RATE)
+        """Decodifica WAV/MP3 desde bytes, sin depender del nombre o encoding de la ruta."""
+        with open(ruta, "rb") as archivo:
+            data = archivo.read()
+        decoded = miniaudio.decode(data, miniaudio.SampleFormat.FLOAT32, 2, RATE)
         return np.asarray(decoded.samples, dtype=np.float32).reshape(-1, 2).copy()
 
     def load(self, deck: str, ruta: str) -> None:
         self.decks[deck].load(ruta, self.decode(ruta))
+
+    def set_sample(self, index: int, audio: np.ndarray) -> None:
+        self.samples[index] = audio
+        self._sample_triggers.put(("replace", index))
+
+    def clear_sample(self, index: int) -> None:
+        self.samples[index] = None
+        self._sample_triggers.put(("replace", index))
+
+    def trigger_sample(self, index: int) -> bool:
+        if self.samples[index] is None:
+            return False
+        self._sample_triggers.put(("toggle", index))
+        return True
 
     def start(self) -> None:
         if self._stream is not None:
@@ -92,6 +114,35 @@ class AudioEngine:
             x = float(self.crossfader)
             mix = (a * float(self.decks["A"].level) * np.cos(x * np.pi / 2)
                    + b * float(self.decks["B"].level) * np.sin(x * np.pi / 2))
+            while True:
+                try:
+                    command, index = self._sample_triggers.get_nowait()
+                except queue.Empty:
+                    break
+                if command == "replace":
+                    self._active_samples.pop(index, None)
+                    self.sample_progress[index] = 0.0
+                elif index in self._active_samples:
+                    del self._active_samples[index]
+                    self.sample_progress[index] = 0.0
+                else:
+                    audio = self.samples[index]
+                    if audio is not None:
+                        self._active_samples[index] = [audio, 0]
+            finished = []
+            for index, (audio, position) in self._active_samples.items():
+                count = min(frames, len(audio) - position)
+                if count > 0:
+                    mix[:count] += audio[position:position + count] * float(self.sample_gains[index])
+                    position += count
+                if position < len(audio):
+                    self._active_samples[index][1] = position
+                    self.sample_progress[index] = position / len(audio)
+                else:
+                    finished.append(index)
+            for index in finished:
+                del self._active_samples[index]
+                self.sample_progress[index] = 0.0
             np.clip(mix * float(self.master), -1.0, 1.0, out=mix)
             outdata[:] = mix
 

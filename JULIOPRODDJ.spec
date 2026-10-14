@@ -30,6 +30,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="JULIOPRODDJ",
+    icon="assets/julioprodj.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
